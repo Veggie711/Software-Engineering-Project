@@ -1,8 +1,10 @@
 'use client'
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef ,useEffect} from 'react';
 import { MessageCircle, User, Upload, FileText, Send, Moon, Home, BarChart3, Settings, History, FileSearch } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function ChestXrayReport() {
+  const { user, logout } = useAuth();
   const [userRole, setUserRole] = useState('doctor'); // 'doctor' or 'patient'
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [zoomLevel, setZoomLevel] = useState(1.0);
@@ -16,7 +18,58 @@ export default function ChestXrayReport() {
   const [imageURL, setImageURL] = useState(null);
   const [prediction, setPrediction] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [reports, setReports] = useState([]);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (currentPage === 'history' && user) {
+      const fetchReports = async () => {
+        try {
+          const response = await fetch('/api/reports');
+          if (response.ok) {
+            const data = await response.json();
+            setReports(data);
+          } else {
+            console.error('Failed to fetch reports');
+          }
+        } catch (error) {
+          console.error('Error fetching reports:', error);
+        }
+      };
+      fetchReports();
+    }
+  }, [currentPage, user]);
+
+  const handleSaveReport = async () => {
+    if (!prediction || !imageURL || !user) {
+      alert('No prediction or user not logged in to save report.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/reports', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          predictedClass: prediction.predicted_class,
+          confidenceScore: prediction.probabilities[['COVID', 'Normal', 'Viral Pneumonia', 'Lung_Opacity'].indexOf(prediction.predicted_class)],
+          imageURL: imageURL,
+        }),
+      });
+
+      if (response.ok) {
+        alert('Report saved successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to save report: ${errorData.message || response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error saving report:', error);
+      alert('Error saving report.');
+    }
+  };
 
   const handleImageUpload = async (event) => {
     const file = event.target.files[0];
@@ -179,19 +232,29 @@ export default function ChestXrayReport() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      {userRole === 'doctor' && <td className="px-6 py-4 text-sm text-gray-900">#1284{i}</td>}
-                      <td className="px-6 py-4 text-sm text-gray-600">Nov {10 + i}, 2025</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">Chest X-ray</td>
-                      <td className="px-6 py-4">
-                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">Completed</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <button className="text-blue-600 hover:text-blue-700 font-medium text-sm">View Report</button>
+                  {reports.length > 0 ? (
+                    reports.map((report) => (
+                      <tr key={report._id} className="hover:bg-gray-50">
+                        {userRole === 'doctor' && <td className="px-6 py-4 text-sm text-gray-900">{report.userId}</td>}
+                        <td className="px-6 py-4 text-sm text-gray-600">{new Date(report.createdAt).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{report.predictedClass}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getConfidenceColor(report.confidenceScore)}`}>
+                            {(report.confidenceScore * 100).toFixed(2)}%
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <button className="text-blue-600 hover:text-blue-700 font-medium text-sm">View Report</button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={userRole === 'doctor' ? 5 : 4} className="px-6 py-4 text-center text-gray-500">
+                        No reports found.
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -505,6 +568,15 @@ export default function ChestXrayReport() {
                                   radiologist.
                                 </p>
                               </div>
+                              {user && (
+                                <button
+                                  onClick={handleSaveReport}
+                                  className="mt-4 w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition flex items-center justify-center gap-2"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                  Save Report
+                                </button>
+                              )}
                             </div>
                           ) : (
                             'Upload an image to get a prediction.'
@@ -622,9 +694,13 @@ export default function ChestXrayReport() {
           <h2 className="text-2xl font-bold text-gray-900">
             {navItems.find(item => item.id === currentPage)?.name || 'X-ray Report Generation'}
           </h2>
-          <button className="bg-gray-100 hover:bg-gray-200 p-2 rounded-full transition">
-            <Moon className="w-5 h-5 text-gray-600" />
-          </button>
+          <div className="flex items-center gap-4">
+            {user ? (
+              <button onClick={logout} className="text-blue-600 hover:text-blue-700 font-medium">Logout</button>
+            ) : (
+              <a href="/login" className="text-blue-600 hover:text-blue-700 font-medium">Login</a>
+            )}
+          </div>
         </div>
 
         {/* Page Content */}
