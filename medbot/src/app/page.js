@@ -1,11 +1,11 @@
 'use client'
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { MessageCircle, User, Upload, FileText, Send, Moon, Home, BarChart3, Settings, History, FileSearch } from 'lucide-react';
 
 export default function ChestXrayReport() {
   const [userRole, setUserRole] = useState('doctor'); // 'doctor' or 'patient'
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [zoomLevel, setZoomLevel] = useState(2.0);
+  const [zoomLevel, setZoomLevel] = useState(1.0);
   const [question, setQuestion] = useState('');
   const [chatMessages, setChatMessages] = useState([
     {
@@ -13,6 +13,40 @@ export default function ChestXrayReport() {
       text: 'Welcome! Ask me about the findings, impression, or specific details in the report above.'
     }
   ]);
+  const [imageURL, setImageURL] = useState(null);
+  const [prediction, setPrediction] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleImageUpload = async (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setLoading(true);
+      setPrediction(null);
+      setImageURL(URL.createObjectURL(file));
+
+      const formData = new FormData();
+      formData.append('image', file);
+
+      try {
+        const response = await fetch('/api/predict', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setPrediction(data);
+        } else {
+          console.error('Failed to get prediction');
+        }
+      } catch (error) {
+        console.error('Error uploading image:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
 
   const exampleQuestions = [
     'What are the main findings?',
@@ -60,6 +94,16 @@ export default function ChestXrayReport() {
   ];
 
   const navItems = userRole === 'doctor' ? doctorNavItems : patientNavItems;
+
+  const getConfidenceColor = (confidence) => {
+    if (confidence >= 0.9) {
+      return "text-green-600";
+    } else if (confidence >= 0.7) {
+      return "text-yellow-600";
+    } else {
+      return "text-red-600";
+    }
+  };
 
   const renderPage = () => {
     switch (currentPage) {
@@ -371,16 +415,28 @@ export default function ChestXrayReport() {
                           <Upload className="w-5 h-5" />
                           Uploaded Image
                         </h3>
-                        <div className="bg-black rounded-lg overflow-hidden relative mb-3">
-                          <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 text-xs font-medium">
-                            SEMI-UPRIGHT
-                          </div>
-                          <img
-                            src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/Chest_Xray_PA_3-8-2010.png/800px-Chest_Xray_PA_3-8-2010.png"
-                            alt="Chest X-ray"
-                            className="w-full h-auto"
-                            style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center' }}
-                          />
+                        <div className="bg-white rounded-lg overflow-hidden relative mb-3 flex justify-center items-center h-64 border-2 border-gray-300 ">
+                          {imageURL ? (
+                            <>
+                              <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 text-xs font-medium">
+                                SEMI-UPRIGHT
+                              </div>
+                              <img
+                                src={imageURL}
+                                alt="Chest X-ray"
+                                className="w-full h-auto"
+                                style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center' }}
+                              />
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => fileInputRef.current.click()}
+                              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition flex items-center gap-2"
+                            >
+                              <Upload className="w-5 h-5" />
+                              Upload Image
+                            </button>
+                          )}
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 text-center mb-2">
@@ -408,18 +464,73 @@ export default function ChestXrayReport() {
                           Generated Report
                         </h3>
                         <div className="bg-white rounded-lg border-2 border-gray-300 p-4 text-sm text-gray-800 leading-relaxed min-h-[250px]">
-                          stable positioning of right internal jugular central venous catheter and right 
-                          internal jugular central venous catheter stable cardiomegaly and mild pulmonary 
-                          edema with bilateral pleural effusions and bibasilar opacities
+                          {loading ? (
+                            <div className="flex justify-center items-center h-full">
+                              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                            </div>
+                          ) : prediction ? (
+                            <div>
+                              <p className="text-lg font-semibold mb-2">
+                                Predicted Class:{" "}
+                                <span className="text-blue-600">{prediction.predicted_class}</span>
+                              </p>
+                              <p className="mb-4">
+                                Confidence Score:{" "}
+                                <span
+                                  className={`font-semibold ${getConfidenceColor(
+                                    prediction.probabilities[
+                                      ['COVID', 'Normal', 'Viral Pneumonia', 'Lung_Opacity'].indexOf(prediction.predicted_class)
+                                    ]
+                                  )}`}
+                                >
+                                  {(
+                                    prediction.probabilities[
+                                      ['COVID', 'Normal', 'Viral Pneumonia', 'Lung_Opacity'].indexOf(prediction.predicted_class)
+                                    ] * 100
+                                  ).toFixed(2)}
+                                  %
+                                </span>
+                              </p>
+                              <div className="text-sm">
+                                <p className="font-semibold mb-2">Summary of Findings:</p>
+                                <p>
+                                  The model predicts the presence of{" "}
+                                  <span className="font-semibold">{prediction.predicted_class}</span> with a high
+                                  degree of confidence. This suggests that the X-ray may show signs
+                                  consistent with this condition.
+                                </p>
+                                <br />
+                                <p>
+                                  For a definitive diagnosis, please consult a qualified
+                                  radiologist.
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            'Upload an image to get a prediction.'
+                          )}
                         </div>
                       </div>
                     </div>
 
                     {/* Start Over Button */}
-                    <button className="w-full py-3 border-2 border-gray-300 rounded-lg text-base text-gray-700 font-medium hover:bg-gray-50 transition flex items-center justify-center gap-2">
-                      <Upload className="w-4 h-4" />
-                      Start Over / New Image
-                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      accept="image/*"
+                      data-testid="file-input"
+                    />
+                    {imageURL && (
+                      <button
+                        onClick={() => fileInputRef.current.click()}
+                        className="w-full py-3 border-2 border-gray-300 rounded-lg text-base text-gray-700 font-medium hover:bg-gray-50 transition flex items-center justify-center gap-2"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Start Over / New Image
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

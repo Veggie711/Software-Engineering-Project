@@ -3,7 +3,9 @@ import torch.nn as nn
 from torchvision import models
 from PIL import Image
 import torchvision.transforms as transforms
-
+import os
+import sys
+import json
 
 def load_model(model_filename="model.pth"):
     base_dir = os.path.dirname(os.path.abspath(__file__)) 
@@ -49,16 +51,16 @@ def predict_image(image_path, model):
         pred_idx = torch.argmax(probs).item()
 
     return {
-        "probabilities": probs.numpy()[0],
+        "probabilities": probs.numpy()[0].tolist(),
         "predicted_class": CLASSES[pred_idx]
     }
 
-"""
--testing
-
 if __name__ == "__main__":
-    model = load_model("/content/model.pth")
-    result = predict_image("/content/test.png", model)
-    print("Probabilities:", result["probabilities"])
-    print("Predicted class:", result["predicted_class"])
-"""
+    if len(sys.argv) != 2:
+        print("Usage: python pipeline.py <image_path>")
+        sys.exit(1)
+
+    image_path = sys.argv[1]
+    model = load_model()
+    result = predict_image(image_path, model)
+    print(json.dumps(result))
