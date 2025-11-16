@@ -1,7 +1,7 @@
 # Software-Engineering-Project
 
 This repository contains the Software Requirements Specification (SRS), design artifacts, and implementation resources for an **AI-Powered Medical Chatbot for Disease Diagnosis and Prescription using Chest X-Ray Images**.  
-The system uses a **ResNet-50 deep learning model** to classify chest X-ray images into *Normal*, *Pneumonia*, or *COVID-19*, and provides a user-friendly chatbot interface for explanations and preliminary medical guidance.
+The system uses a **CNN based deep learning model** to classify chest X-ray images into *Normal*, *Pneumonia*, or *COVID-19*, and provides a user-friendly chatbot interface for explanations and preliminary medical guidance.
 
 ## 📌 Project Overview
 The project aims to improve accessibility to medical diagnostic support by integrating machine learning, medical imaging, and conversational AI. It assists users in:
@@ -14,9 +14,9 @@ The project aims to improve accessibility to medical diagnostic support by integ
 ## 🏗️ System Features
 - Image upload and validation  
 - Automated preprocessing  
-- Deep learning-based diagnosis (ResNet-50)  
+- Deep learning-based diagnosis 
 - Chatbot interaction module  
-- Report generation (PDF/JSON)  
+- Report generation 
 - User and admin management  
 - Email/SMS notifications  
 
